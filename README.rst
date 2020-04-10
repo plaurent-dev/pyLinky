@@ -36,12 +36,17 @@ Note on branch feature/enedis
 ------------
 Ceci un premier jet et nécessite la vision d'un mainteneur du projet.
 
-
-    from pylinky import LinkyClient
-    client = LinkyClient(id, secret, redirect_uri)
-    client.login()
-    print(client.get_data(scope='IDENTITY'))
-    print(client.get_data(scope='DAILY_CONSUMPTION',start_date='2020-04-08',end_date='2020-04-09'))
+'''
+from pylinky import LinkyClient
+client = LinkyClient(id, secret, redirect_uri)
+client.login()
+print(client.get_data(scope='IDENTITY'))
+print(client.get_data(scope='DAILY_CONSUMPTION',start_date='2020-04-08',end_date='2020-04-09'))
+'''
+    
+Initial code provided by Gautier Husson
+------------
+https://datahub-enedis.fr/data-connect/ressources/exemple-de-code/
 
 Usage
 -----
