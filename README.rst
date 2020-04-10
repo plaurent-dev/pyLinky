@@ -43,6 +43,10 @@ client.login()
 print(client.get_data(scope='IDENTITY'))
 print(client.get_data(scope='DAILY_CONSUMPTION',start_date='2020-04-08',end_date='2020-04-09'))
 '''
+    
+Initial code provided by Gautier Husson
+------------
+https://datahub-enedis.fr/data-connect/ressources/exemple-de-code/
 
 Usage
 -----
