@@ -1,0 +1,25 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "http://example.com/addresses.schema.json",
+    "title": "Contact response schema",
+    "description": "A product in the catalog",
+    "type" : "object",
+    "properties" : {
+        "customer": {
+            "type" : "object",
+            "properties": {
+                "customer_id": {"type": "string"},
+                "contact_data" : {
+                    "type" : "object",
+                    "properties": {
+                        "email": {"type": "string"},
+                        "phone": {"type": "string"}
+                    },
+                    "required": ["email","phone"]
+                }
+            },
+            "required": ["customer_id","contact_data"]
+        }
+    },
+    "required": ["customer"]
+}

@@ -1,0 +1,30 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "http://example.com/addresses.schema.json",
+    "title": "Indentity response schema",
+    "description": "A product in the catalog",
+    "type" : "object",
+    "properties" : {
+        "customer" : {
+            "type" : "object",
+            "properties": {
+                "customer_id": {"type": "string"},
+                "identity": {"type": "object",
+                    "properties": {
+                        "natural_person":    {"type": "object",
+                            "properties": {
+                               "firstname":        {"type" : "string"},
+                               "lastname":         {"type" : "string"},
+                               "title":            {"type": "string"}
+                            },
+                            "required": ["firstname","lastname","title"]
+                            }
+                        },
+                        "required": ["natural_person"]
+                    }
+            },
+            "required": ["customer_id","identity"]
+        }
+    },
+    "required": ["customer"]
+}

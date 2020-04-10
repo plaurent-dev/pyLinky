@@ -1,214 +1,156 @@
 import base64
 import datetime
 import json
-
 import requests
-import simplejson
-from dateutil.relativedelta import relativedelta
-from fake_useragent import UserAgent
+import re
+import sys
+if ((3, 0) <= sys.version_info <= (3, 9)):
+    import urllib.parse as urlparse
+elif ((2, 0) <= sys.version_info <= (2, 9)):
+    import urlparse 
 
 from .exceptions import (PyLinkyAccessException, PyLinkyEnedisException,
                          PyLinkyException, PyLinkyMaintenanceException,
                          PyLinkyWrongLoginException)
 
-LOGIN_URL = "https://espace-client-connexion.enedis.fr/auth/UI/Login"
-HOST = "https://espace-client-particuliers.enedis.fr/group/espace-particuliers"
-DATA_URL = "{}/suivi-de-consommation".format(HOST)
+AUTHORIZE_URL_SANDBOX           = "https://gw.hml.api.enedis.fr/dataconnect/v1/oauth2/authorize"
+ENDPOINT_TOKEN_URL_SANDBOX      = "https://gw.hml.api.enedis.fr/v1/oauth2/token"
+METERING_DATA_BASE_URL_SANDBOX  = "https://gw.hml.api.enedis.fr"
 
-REQ_PART = "lincspartdisplaycdc_WAR_lincspartcdcportlet"
+AUTHORIZE_URL_PROD              = "https://gw.prd.api.enedis.fr/dataconnect/v1/oauth2/authorize"
+ENDPOINT_TOKEN_URL_PROD         = "https://gw.prd.api.enedis.fr/v1/oauth2/token"
+METERING_DATA_BASE_URL_PROD     = "https://gw.prd.api.enedis.fr"
 
-HOURLY = "hourly"
-DAILY = "daily"
-MONTHLY = "monthly"
-YEARLY = "yearly"
-
-
-_DELTA = 'delta'
-_FORMAT = 'format'
-_RESSOURCE = 'ressource'
-_DURATION = 'duration'
-_MAP = {
-    _DELTA: {HOURLY: 'hours', DAILY: 'days', MONTHLY: 'months', YEARLY: 'years'},
-    _FORMAT: {HOURLY: "%H:%M", DAILY: "%d %b", MONTHLY: "%b", YEARLY: "%Y"},
-    _RESSOURCE: {HOURLY: 'urlCdcHeure', DAILY: 'urlCdcJour', MONTHLY: 'urlCdcMois', YEARLY: 'urlCdcAn'},
-    _DURATION: {HOURLY: 24, DAILY: 30, MONTHLY: 12, YEARLY: None}
+SCOPE = {
+"ADDRESSES": "/v3/customers/usage_points/addresses",
+"CONSUMPTION_LOAD_CURVE": "/v4/metering_data/consumption_load_curve", 
+"CONTRACTS": "/v3/customers/usage_points/contracts",
+"CONTACT_DATA": "/v3/customers/contact_data", 
+"DAILY_CONSUMPTION": "/v4/metering_data/daily_consumption", 
+"DAILY_CONSUMPTION_MAX_POWER": "/v4/metering_data/daily_consumption_max_power", 
+"IDENTITY": "/v3/customers/identity"
 }
-
 
 class LinkyClient(object):
     
-    PERIOD_DAILY = DAILY
-    PERIOD_MONTHLY = MONTHLY
-    PERIOD_YEARLY = YEARLY
-    PERIOD_HOURLY = HOURLY
-    
-    def __init__(self, username, password, session=None, timeout=None):
+    def __init__(self,  id, secret, redirect_url, authorize_duration="P4M", state = "LREO45H1"):
         """Initialize the client object."""
-        self.username = username
-        self.password = password
-        self._session = session
+        self.id = id
+        self.secret = secret
+        self.redirect_url = redirect_url
+        self.authorize_duration = authorize_duration
+        self.state = state
+        self.callback_authorize_code = None
+        self.callback_usage_point_id = None
+        self.callback_state = None
+        self.token = None
         self._data = {}
-        self._timeout = timeout
+
+    def _pretty_print_request(self,req):
+        print('{}\n{}\n{}\n{}\n{}\n'.format(
+            '-----------REQ START-----------',
+            req.method + ' ' + req.url,
+            '\n'.join('{}: {}'.format(k, v) for k, v in req.headers.items()),
+            req.body,
+            '-----------REQ STOP-----------',))
 
     def login(self):
-        """Set http session."""
-        if self._session is None:
-            self._session = requests.session()
-            # adding fake user-agent header
-            self._session.headers.update({'User-agent': str(UserAgent().random)})
-        return self._post_login_page()
-
-    def _post_login_page(self):
-        """Login to enedis."""
-        data = {
-            'IDToken1': self.username,
-            'IDToken2': self.password,
-            'SunQueryParamsString': base64.b64encode(b'realm=particuliers'),
-            'encoded': 'true',
-            'gx_charset': 'UTF-8'
-        }
+        req_params = {
+             'client_id': self.id,
+             'response_type': 'code',
+             #'redirect_uri': self.redirect_url,
+             'state': self.state,
+             'duration': self.authorize_duration
+            }
 
         try:
-            self._session.post(LOGIN_URL,
-                               data=data,
-                               allow_redirects=False,
-                               timeout=self._timeout)
+            http_request = requests.Request("GET", AUTHORIZE_URL_SANDBOX, params=req_params)
+            http_request_prepared = http_request.prepare()
+            http_session = requests.Session()
+            http_return = http_session.send(http_request_prepared)
+
+            callback_found = re.findall(r'var url = \".*\"', http_return.text)
+            callback_url = callback_found[0].split('\"')[1]
+            callback_url_parsed = urlparse.urlparse(callback_url)
+            self.callback_authorize_code = urlparse.parse_qs(callback_url_parsed.query, True)['code'][0]
+            self.callback_state = urlparse.parse_qs(callback_url_parsed.query, True)['state'][0]
+            self.callback_usage_point_id = urlparse.parse_qs(callback_url_parsed.query, True)['usage_point_id'][0]
+            #print ("callback auth_code = ", self.callback_authorize_code)
+            #print ("callback state = ", self.callback_state)
+            #print ("callback usage_point_id = ", self.callback_usage_point_id)
+
         except OSError:
-            raise PyLinkyAccessException("Can not submit login form")
-        if 'iPlanetDirectoryPro' not in self._session.cookies:
-            raise PyLinkyWrongLoginException("Login error: Please check your username/password.")
+            raise PyLinkyAccessException("Can not obtain Enedis code")
+        
+        self.token = self._get_token()
         return True
 
-    def _get_data(self, p_p_resource_id, start_date=None, end_date=None):
-        """Get data."""
-
-        data = {
-            '_' + REQ_PART + '_dateDebut': start_date,
-            '_' + REQ_PART + '_dateFin': end_date
-        }
-
-        params = {
-            'p_p_id': REQ_PART,
-            'p_p_lifecycle': 2,
-            'p_p_state': 'normal',
-            'p_p_mode': 'view',
-            'p_p_resource_id': p_p_resource_id,
-            'p_p_cacheability': 'cacheLevelPage',
-            'p_p_col_id': 'column-1',
-            'p_p_col_pos': 1,
-            'p_p_col_count': 3
-        }
+    def _get_token(self):
+        """Get Token."""
+        
+        req_head = {
+           'Content-Type': 'application/x-www-form-urlencoded',
+           'Accept': 'text/html'
+           }
+        req_params = {
+                    'redirect_uri': self.redirect_url,
+                    }
+        req_data = {
+                'grant_type': 'authorization_code',
+                'client_id': self.id,
+                'client_secret': self.secret,
+                'code': self.callback_authorize_code
+                }
 
         try:
-            raw_res = self._session.post(DATA_URL,
-                                         data=data,
-                                         params=params,
-                                         allow_redirects=False,
-                                         timeout=self._timeout)
+            # Forge and print request
+            http_request = requests.Request("POST", ENDPOINT_TOKEN_URL_SANDBOX, headers=req_head, params=req_params, data=req_data)
+            http_request_prepared = http_request.prepare()
+            #self._pretty_print_request(http_request_prepared)
 
-            if 300 <= raw_res.status_code < 400:
-                raw_res = self._session.post(DATA_URL,
-                                             data=data,
-                                             params=params,
-                                             allow_redirects=False,
-                                             timeout=self._timeout)
+            # Send request
+            http_session = requests.Session()
+            http_return = http_session.send(http_request_prepared)
+
+            # Print request result
+            #print(http_return.status_code)
+            #print(http_return.text)
+            #print(http_return.json)
+
+            # Parse request result
+            endpoint_token_returned_json = json.loads(http_return.text)
+
+        except OSError:
+            raise PyLinkyAccessException("Can not obtain token")
+        return endpoint_token_returned_json
+
+    def get_data(self, scope = None, start_date=None, end_date=None):
+        """Get data."""
+
+        metering_data_api_path = SCOPE[scope]
+        request_url = METERING_DATA_BASE_URL_SANDBOX + metering_data_api_path
+        token_type = self.token['token_type']
+        token = self.token['access_token']
+
+        req_head = {
+                'Accept': 'application/json',
+                'Authorization': token_type + ' ' + token
+                }
+
+        req_params = {
+                'start': start_date,
+                'end': end_date,
+                'usage_point_id':self.callback_usage_point_id
+                }
+
+        try:
+            http_request = requests.Request("GET", request_url, headers=req_head, params=req_params)
+            http_request_prepared = http_request.prepare()
+            http_session = requests.Session()
+            http_return = http_session.send(http_request_prepared)
+            #print(http_return.status_code)
+            #print(http_return.text)
         except OSError as e:
             raise PyLinkyAccessException("Could not access enedis.fr: " + str(e))
 
-        if raw_res.text is "":
-            raise PyLinkyException("No data")
-
-        if 302 == raw_res.status_code and "/messages/maintenance.html" in raw_res.text:
-            raise PyLinkyMaintenanceException("Site in maintenance")
-
-        try:
-            json_output = raw_res.json()
-        except (OSError, json.decoder.JSONDecodeError, simplejson.errors.JSONDecodeError) as e:
-            raise PyLinkyException("Impossible to decode response: " + str(e) + "\nResponse was: " + str(raw_res.text))
-
-        if json_output.get('etat').get('valeur') == 'erreur':
-            raise PyLinkyEnedisException("Enedis.fr answered with an error: " + str(json_output))
-
-        return json_output.get('graphe')
-
-    def format_data(self, data, time_format=None):
-        result = []
-
-        # Prevent from non existing data yet
-        if not data or not data.get("data"):
-            return []
-
-        period_type = data['period_type']
-        if time_format is None:
-            time_format = _MAP[_FORMAT][period_type]
-        format_data = _MAP[_DELTA][period_type]
-
-        # Extract start date and parse it
-        if 'periode' in data:
-            periode = data.get("periode")
-            if not periode:
-                return []
-            start_date = datetime.datetime.strptime(periode.get("dateDebut"), "%d/%m/%Y").date()
-
-        # Calculate final start date using the "offset" attribute returned by the API
-        inc = 1
-        if format_data == 'hours':
-            inc = 0.5
-
-        kwargs = {format_data: data.get('decalage') * inc}
-        start_date = start_date - relativedelta(**kwargs)
-
-        # Generate data
-        for order, value in enumerate(data.get('data')):
-            kwargs = {format_data: order * inc}
-            result.append({"time": ((start_date + relativedelta(**kwargs)).strftime(time_format)),
-                           "conso": (value.get('valeur') if value.get('valeur') > 0 else 0)})
-
-        return result
-
-    def get_data_per_period(self, period_type=HOURLY, start=None, end=None):
-        today = datetime.date.today()
-        if start is None:
-            kwargs = {_MAP[_DELTA][period_type]: _MAP[_DURATION][period_type]}
-            if period_type == YEARLY:
-                start = None
-            # 12 last complete months + current month
-            elif period_type == MONTHLY:
-                start = (today.replace(day=1) - relativedelta(**kwargs))
-            else:
-                start = (today - relativedelta(**kwargs))
-        if end is None:
-            if period_type == YEARLY:
-                end = None
-            elif period_type == HOURLY:
-                end = today
-            else:
-                end = (today - relativedelta(days=1))
-
-        if start is not None:
-            start = start.strftime("%d/%m/%Y")
-        if end is not None:
-            end = end.strftime("%d/%m/%Y")
-
-        data = self._get_data(_MAP[_RESSOURCE][period_type], start, end)
-        data['period_type'] = period_type
-
-        self._data[period_type] = data
-        return data
-
-    def fetch_data(self):
-        """Get the latest data from Enedis."""
-        for t in [HOURLY, DAILY, MONTHLY, YEARLY]:
-            self.get_data_per_period(t)
-
-    def get_data(self):
-        formatted_data = dict()
-        for t in [HOURLY, DAILY, MONTHLY, YEARLY]:
-            if t in self._data:
-                formatted_data[t] = self.format_data(self._data[t])
-        return formatted_data
-
-    def close_session(self):
-        """Close current session."""
-        self._session.close()
-        self._session = None
+        return json.loads(http_return.text)

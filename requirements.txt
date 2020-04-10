@@ -1,4 +1,3 @@
 python-dateutil
 requests
-simplejson
-fake_useragent
+jsonschema

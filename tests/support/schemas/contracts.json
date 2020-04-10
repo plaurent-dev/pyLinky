@@ -1,0 +1,42 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "http://example.com/addresses.schema.json",
+    "title": "Addresses response schema",
+    "description": "A product in the catalog",
+    "type" : "object",
+    "properties" : {
+        "customer" : {
+            "type" : "object",
+            "properties": {
+                "customer_id":   {"type": "string"},
+                "usage_points":   {"type": "array",
+                    "items": {
+                        "usage_point": {"type": "object",
+                           "properties": {
+                               "usage_point_id":     {"type": "string"},
+                               "usage_point_status": {"type": "string"},
+                               "meter_type":         {"type": "string"},
+                               "contracts":          {"type": "object",
+                                           "properties":{
+                                                 "segment":                             {"type": "string"},
+                                                 "subscribed_power":                    {"type": "string"},
+                                                 "last_activation_date":                {"type": "string"},
+                                                 "distribution_tariff":                 {"type": "string"},
+                                                 "offpeak_hours":                       {"type": "string"},
+                                                 "contract_type":                       {"type": "string"},
+                                                 "contract_status":                     {"type": "string"},
+                                                 "last_distribution_tariff_change_date":{"type": "string"}
+                                           },
+                                           "required": ["segment","subscribed_power","last_activation_date","distribution_tariff","offpeak_hours","contract_type","contract_status","last_distribution_tariff_change_date"]
+                                }
+                           },
+                          "required": ["usage_point_id","usage_point_status","meter_type","contracts"]
+                        }
+                    }
+                  }
+                },
+             "required":["customer_id","usage_points"]
+            }
+        },
+    "required": ["customer"]
+}

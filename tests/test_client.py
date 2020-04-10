@@ -1,58 +1,65 @@
 import unittest
-import requests_mock
-import responses
 
 # Our test case class
 import requests
 from pylinky import LinkyClient
-from pylinky.client import LOGIN_URL
-
+import json
+from .support.assertions import assert_valid_schema
 
 class LinkyClientTestCase(unittest.TestCase):
+    def setUp(self):
+        super(LinkyClientTestCase, self).setUp()
+        self.id = "your_id"
+        self.secret = "your_sms"
+        self.redirect_uri = "your_site"
+
 
     def test_LinkyClient(self):
-        username = "test_login"
-        password = "test_password"
-        client = LinkyClient(username, password)
-        assert client.username == username
-        assert client.password == password
-        assert client._timeout is None
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        assert client.id == self.id
+        assert client.secret == self.secret
+        assert client.redirect_url == self.redirect_uri
 
-    def test_LinkyClientWithTimeout(self):
-        username = "test_login"
-        password = "test_password"
-
-        client = LinkyClient(username, password, timeout=1)
-        assert client.username == username
-        assert client.password == password
-        assert client._timeout == 1
-
-    def test_LinkyClientWithSession(self):
-        username = "test_login"
-        password = "test_password"
-        session = requests.session()
-
-        client = LinkyClient(username, password, session=session)
-        assert client.username == username
-        assert client.password == password
-        assert client._session == session
-
-    @requests_mock.Mocker()
-    def test_login(self, m):
-        cookies = {'iPlanetDirectoryPro': 'test'}
-
-        m.register_uri('POST', LOGIN_URL, status_code=200, cookies=cookies)
-        client = LinkyClient("test_login", "test_password")
-
+    def test_LinkyClient_Identity(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
         client.login()
+        response = client.get_data(scope='IDENTITY')
+        assert_valid_schema(response[0], 'identity.json')
 
-    def test(self):
-        data = None
-        if not data:
-            assert True
-        else:
-            assert False
+    def test_LinkyClient_Addresses(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='ADDRESSES')
+        assert_valid_schema(response[0], 'addresses.json')
+     
+    def test_LinkyClient_Contracts(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='CONTRACTS')
+        assert_valid_schema(response[0], 'contracts.json')
 
+    def test_LinkyClient_ContactData(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='CONTACT_DATA')
+        assert_valid_schema(response[0], 'contact.json')
 
+    def test_LinkyClient_Consumption(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='CONSUMPTION_LOAD_CURVE',start_date='2020-04-08',end_date='2020-04-09')
+        assert_valid_schema(response, 'consumption.json')
+
+    def test_LinkyClient_DailyConsumption(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='DAILY_CONSUMPTION',start_date='2020-04-08',end_date='2020-04-09')
+        assert_valid_schema(response, 'consumption.json')
+    
+    def test_LinkyClient_DailyConsumptionMaxPower(self):
+        client = LinkyClient(self.id, self.secret, self.redirect_uri)
+        client.login()
+        response = client.get_data(scope='DAILY_CONSUMPTION_MAX_POWER',start_date='2020-04-08',end_date='2020-04-09')
+        assert_valid_schema(response, 'consumption.json')
 if __name__ == "__main__":
     unittest.main()

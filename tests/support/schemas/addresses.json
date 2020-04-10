@@ -1,0 +1,51 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "http://example.com/addresses.schema.json",
+    "title": "Addresses response schema",
+    "description": "A product in the catalog",
+    "type" : "object",
+    "properties" : {
+        "customer" : {
+            "type" : "object",
+            "properties": {
+                "customer_id": {"type": "string"},
+                "usage_points": {"type": "array",
+                    "items": {
+                        "usage_point":    {"type": "object",
+                            "properties": {
+                               "usage_point_id":        {"type" : "string"},
+                               "usage_point_status":    {"type" : "string"},
+                               "meter_type":            {"type": "string"},
+                               "usage_point_addresses": {"type": "object",
+                                    "properties": {
+                                        "street":       {"type" : "string"},
+                                        "locality":     {"type" : "string"},
+                                        "postal_code":  {"type" : "string"},
+                                        "insee_code":   {"type" : "string"},
+                                        "city":         {"type" : "string"},
+                                        "country":      {"type" : "string"},
+                                        "geo_points":   {
+                                            "type" : "object",
+                                            "properties": {
+                                                "latitude":  {"type" : "string"},
+                                                "longitude": {"type" : "string"},
+                                                "altitude": {"type" : "string"}
+                                            },
+                                            "required": ["latitude","longitude","altitude"]
+                                        },
+                                        "required": ["street","locality","postal_code","insee_code","city","country","geo_points"]
+                                    }
+                                }
+                            },
+                            "required": ["usage_point_id","usage_point_status","meter_type","usage_point_addresses"]
+                        },
+                        "required": ["usage_point"]
+                    },
+                    "required": ["usage_point"]
+                }
+            },
+            "required": ["customer_id","usage_points"]
+        }
+    },
+    "required": ["customer"]
+}

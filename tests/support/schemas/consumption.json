@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "http://example.com/addresses.schema.json",
+    "title": "Addresses response schema",
+    "description": "A product in the catalog",
+    "type" : "object",
+    "properties" : {
+        "meter_reading" : {
+            "type" : "object",
+            "properties": {
+                "end":            {"type": "string"},
+                "usage_point_id": {"type": "string"},
+                "quality":        {"type": "string"},
+                "reading_type":   {"type": "object",
+                                  "properties": {
+                                     "aggregate":           {"type": "string"},
+                                     "measurement_kind":    {"type": "string"},
+                                     "unit":                {"type": "string"}
+                                  },
+                                   "required": ["aggregate","measurement_kind","unit"]
+                                },
+                "start":          {"type": "string"},
+                "interval_reading": {"type": "array",
+                                    "items": {
+                                        "date":{"type": "string"},
+                                        "interval_length":{"type": "string"},
+                                        "measure_type":{"type": "string"},
+                                        "value":{"type": "string"}
+                                    },
+                                     "required": ["date","interval_length","measure_type","value"]
+                                    
+                                    }
+            },
+            "required": ["end","usage_point_id","quality","reading_type","start","interval_reading"]
+        }
+    },
+    "required": ["meter_reading"]
+}
