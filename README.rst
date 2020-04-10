@@ -31,6 +31,19 @@ You can also download the source code and install it manually::
     cd /path/to/pylinky/
     python setup.py install
 
+    
+Note on branch feature/enedis
+------------
+Ceci un premier jet et nécessite la vision d'un mainteneur du projet.
+
+'''
+from pylinky import LinkyClient
+client = LinkyClient(id, secret, redirect_uri)
+client.login()
+print(client.get_data(scope='IDENTITY'))
+print(client.get_data(scope='DAILY_CONSUMPTION',start_date='2020-04-08',end_date='2020-04-09'))
+'''
+
 Usage
 -----
 Print your current data
